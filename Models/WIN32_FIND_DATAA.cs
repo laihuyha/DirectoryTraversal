@@ -1,10 +1,10 @@
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace TestDirTraversal
+namespace TestDirTraversal.Models
 {
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    public struct WIN32_FIND_DATAW
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct WIN32_FIND_DATAA
     {
         public FileAttributes dwFileAttributes;
         internal System.Runtime.InteropServices.ComTypes.FILETIME ftCreationTime;

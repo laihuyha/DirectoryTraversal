@@ -3,18 +3,18 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using static TestDirTraversal.SubClass;
+using TestDirTraversal.Models;
 
 namespace TestDirTraversal
 {
     // Code from : https://stackoverflow.com/questions/26321366/fastest-way-to-get-directory-data-in-net
     public static class DirectoryTraversal
     {
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        public static extern IntPtr FindFirstFileW(string lpFileName, out WIN32_FIND_DATAW lpFindFileData);
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
+        public static extern IntPtr FindFirstFileA(string lpFileName, out WIN32_FIND_DATAA lpFindFileData);
 
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-        public static extern bool FindNextFile(IntPtr hFindFile, out WIN32_FIND_DATAW lpFindFileData);
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi)]
+        public static extern bool FindNextFileA(IntPtr hFindFile, out WIN32_FIND_DATAA lpFindFileData);
 
         [DllImport("kernel32.dll")]
         public static extern bool FindClose(IntPtr hFindFile);
@@ -25,11 +25,11 @@ namespace TestDirTraversal
         {
             List<FileInformation> fileList = new List<FileInformation>();
             List<DirectoryInformation> directoryList = new List<DirectoryInformation>();
-            WIN32_FIND_DATAW findData;
+            WIN32_FIND_DATAA findData;
             IntPtr findHandle = INVALID_HANDLE_VALUE;
             try
             {
-                findHandle = FindFirstFileW(path + @"\*", out findData);
+                findHandle = FindFirstFileA(path + @"\*", out findData);
                 if (findHandle != INVALID_HANDLE_VALUE)
                 {
                     do
@@ -56,7 +56,7 @@ namespace TestDirTraversal
                             }
                         }
                     }
-                    while (FindNextFile(findHandle, out findData));
+                    while (FindNextFileA(findHandle, out findData));
                 }
             }
             catch (Exception exception)
@@ -79,13 +79,13 @@ namespace TestDirTraversal
             object fileListLock = new object();
             List<DirectoryInformation> directoryList = new List<DirectoryInformation>();
             object directoryListLock = new object();
-            WIN32_FIND_DATAW findData;
+            WIN32_FIND_DATAA findData;
             IntPtr findHandle = INVALID_HANDLE_VALUE;
             List<Tuple<string, DateTime>> info = new List<Tuple<string, DateTime>>();
             try
             {
                 path = path.EndsWith(@"\") ? path : path + @"\";
-                findHandle = FindFirstFileW(path + @"*", out findData);
+                findHandle = FindFirstFileA(path + @"*", out findData);
                 if (findHandle != INVALID_HANDLE_VALUE)
                 {
                     do
@@ -105,7 +105,7 @@ namespace TestDirTraversal
                             }
                         }
                     }
-                    while (FindNextFile(findHandle, out findData));
+                    while (FindNextFileA(findHandle, out findData));
                     directoryList.AsParallel().ForAll(x =>
                     {
                         List<FileInformation> subDirectoryFileList = new List<FileInformation>();

@@ -1,37 +1,37 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
-using static TestDirTraversal.SubClass;
+using TestDirTraversal.Models;
 
 namespace TestDirTraversal
 {
     public static class StructuredDirectoryTraversal
     {
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        public static extern IntPtr FindFirstFileW(string lpFileName, out WIN32_FIND_DATAW lpFindFileData);
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
+        public static extern IntPtr FindFirstFileA(string lpFileName, out WIN32_FIND_DATAA lpFindFileData);
 
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-        public static extern bool FindNextFile(IntPtr hFindFile, out WIN32_FIND_DATAW lpFindFileData);
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi)]
+        public static extern bool FindNextFileA(IntPtr hFindFile, out WIN32_FIND_DATAA lpFindFileData);
 
         [DllImport("kernel32.dll")]
         public static extern bool FindClose(IntPtr hFindFile);
 
-        static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
+        const IntPtr INVALID_HANDLE_VALUE = -1;
 
-        static bool FindNextFilePInvokeRecursive(string path, out Folder folder)
+        static bool FindNextFilePInvokeRecursive(string path, out Entry folder)
         {
-            folder = new Folder
+            folder = new Entry
             {
+                FullPath = path,
                 Name = Path.GetFileName(path),
-                Subfolders = [],
-                Files = []
             };
 
             IntPtr findHandle = INVALID_HANDLE_VALUE;
 
             try
             {
-                findHandle = FindFirstFileW(path + @"\*", out WIN32_FIND_DATAW findData);
+                path = path.EndsWith(@"\") ? path : path + @"\";
+                findHandle = FindFirstFileA(path + @"*", out WIN32_FIND_DATAA findData);
 
                 if (findHandle == INVALID_HANDLE_VALUE)
                     return false;
@@ -54,14 +54,14 @@ namespace TestDirTraversal
             return true;
         }
 
-        static void ProcessFoundFilesAndFolders(IntPtr findHandle, WIN32_FIND_DATAW findData, string path, Folder folder)
+        static void ProcessFoundFilesAndFolders(IntPtr findHandle, WIN32_FIND_DATAA findData, string path, Entry folder)
         {
-            string fullPath = path + @"\" + findData.cFileName;
             do
             {
                 if (ShouldSkip(findData))
                     continue;
 
+                string fullPath = path + findData.cFileName;
 
                 if (IsDirectory(findData))
                 {
@@ -72,35 +72,35 @@ namespace TestDirTraversal
                     AddFile(fullPath, folder);
                 }
             }
-            while (FindNextFile(findHandle, out findData));
+            while (FindNextFileA(findHandle, out findData));
         }
 
-        static bool ShouldSkip(WIN32_FIND_DATAW findData)
+        static bool ShouldSkip(WIN32_FIND_DATAA findData)
         {
             return findData.cFileName == "." || findData.cFileName == "..";
         }
 
-        static bool IsDirectory(WIN32_FIND_DATAW findData)
+        static bool IsDirectory(WIN32_FIND_DATAA findData)
         {
             return findData.dwFileAttributes.HasFlag(FileAttributes.Directory) && !findData.dwFileAttributes.HasFlag(FileAttributes.ReparsePoint);
         }
 
-        static void AddSubfolder(string fullPath, Folder folder)
+        static void AddSubfolder(string fullPath, Entry folder)
         {
-            if (FindNextFilePInvokeRecursive(fullPath, out Folder subfolder))
+            if (FindNextFilePInvokeRecursive(fullPath, out Entry subfolder))
             {
                 folder.Subfolders.Add(subfolder);
             }
         }
 
-        static void AddFile(string fullPath, Folder folder)
+        static void AddFile(string fullPath, Entry folder)
         {
             folder.Files.Add(fullPath);
         }
 
-        public static Folder GetFolderStructure(string rootPath)
+        public static Entry GetFolderStructure(string rootPath)
         {
-            FindNextFilePInvokeRecursive(rootPath, out Folder rootFolder);
+            FindNextFilePInvokeRecursive(rootPath, out Entry rootFolder);
             return rootFolder;
         }
     }
