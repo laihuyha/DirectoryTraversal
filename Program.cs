@@ -2,7 +2,6 @@
 using System;
 using System.Diagnostics;
 using TestDirTraversal;
-using static TestDirTraversal.SubClass;
 
 public class Win32DirectoryTraversal
 {
