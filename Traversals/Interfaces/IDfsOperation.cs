@@ -4,6 +4,6 @@ namespace TestDirTraversal.Traversals.Interfaces
 {
     public interface IDfsOperation
     {
-        public Folder PInvokeDfsRecursiveAsync(string rootPath, Folder folder, HashSet<string> traversedPaths);
+        public void PInvokeDfsRecursiveAsync(string rootPath, HashSet<string> traversedPaths, out Entry entry);
     }
 }

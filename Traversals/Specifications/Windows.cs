@@ -1,40 +1,42 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using TestDirTraversal.Helper;
+using TestDirTraversal.Models;
 using TestDirTraversal.Traversals.Interfaces;
 
 namespace TestDirTraversal.Traversals.Specifications
 {
-    public class Windows : IDfsOperation, IRecursiveOperation
+    public class Windows : IRecursiveOperation
     {
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        public static extern IntPtr FindFirstFileW(string lpFileName, out WIN32_FIND_DATAW lpFindFileData);
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
+        private static extern IntPtr FindFirstFileA(string lpFileName, out WIN32_FIND_DATAA lpFindFileData);
 
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-        public static extern bool FindNextFile(IntPtr hFindFile, out WIN32_FIND_DATAW lpFindFileData);
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi)]
+        private static extern bool FindNextFileA(IntPtr hFindFile, out WIN32_FIND_DATAA lpFindFileData);
 
         [DllImport("kernel32.dll")]
-        public static extern bool FindClose(IntPtr hFindFile);
+        private static extern bool FindClose(IntPtr hFindFile);
 
         private const IntPtr INVALID_HANDLE_VALUE = -1;
 
-        public void PInvokeRecursive(string path, out Folder folder)
+        public void PInvokeRecursive(string path, out Entry folder)
         {
-            folder = new Folder
+            folder = new Entry
             {
                 Name = Path.GetFileName(path),
+                FullPath = Path.GetFullPath(path),
                 Subfolders = [],
-                Files = []
+                Files = [],
             };
 
             IntPtr findHandle = INVALID_HANDLE_VALUE;
 
             try
             {
-                findHandle = FindFirstFileW(path + @"\*", out WIN32_FIND_DATAW findData);
+                path = path.EndsWith(@"\") ? path : path + @"\";
+                findHandle = FindFirstFileA(path + @"*", out WIN32_FIND_DATAA findData);
 
                 if (findHandle == INVALID_HANDLE_VALUE)
                     return;
@@ -57,98 +59,38 @@ namespace TestDirTraversal.Traversals.Specifications
             return;
         }
 
-        public Folder PInvokeDfsRecursiveAsync(string rootPath, Folder folder, HashSet<string> traversedPaths)
+        public void PInvokeRecursiveParalleled(string path, out Entry rootEntry)
         {
-            try
-            {
-                var stack = new Stack<KeyValuePair<string, Folder>>();
-
-                stack.Push(new KeyValuePair<string, Folder>(rootPath, folder));
-
-                while (stack.Count > 0)
-                {
-                    var currentNode = stack.Pop();
-
-                    if (traversedPaths.Contains(currentNode.Key)) continue;
-
-                    GetDirectoryContent(currentNode.Key, out folder);
-
-                    traversedPaths.Add(currentNode.Key);
-
-                    folder.Subfolders.ForEach(x =>
-                        stack.Push(new KeyValuePair<string, Folder>(rootPath + @"\" + x.Name, x))
-                    );
-
-                    stack.AsParallel().ForAll(pair => PInvokeDfsRecursiveAsync(pair.Key, pair.Value, traversedPaths));
-                }
-                return folder;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex);
-                return null;
-            }
-        }
-
-        #region Recursive
-        public void ProcessFoundFilesAndFolders(IntPtr findHandle, WIN32_FIND_DATAW findData, string path, Folder folder)
-        {
-            string fullPath = path + @"\" + findData.cFileName;
-            do
-            {
-                if (TraversalHelper.ShouldSkip(findData))
-                    continue;
-
-
-                if (TraversalHelper.IsWindowsDirectory(findData))
-                {
-                    TraversalHelper.AddSubfolder(fullPath, folder, PInvokeRecursive);
-                }
-                else
-                {
-                    TraversalHelper.AddFile(fullPath, folder);
-                }
-            }
-            while (FindNextFile(findHandle, out findData));
-        }
-        #endregion Recursive
-
-        #region Dfs
-        public static void GetDirectoryContent(string path, out Folder folder)
-        {
-            folder = new Folder
+            rootEntry = new Entry
             {
                 Name = Path.GetFileName(path),
+                FullPath = Path.GetFullPath(path),
                 Subfolders = [],
-                Files = []
+                Files = [],
             };
 
             IntPtr findHandle = INVALID_HANDLE_VALUE;
 
             try
             {
-                findHandle = FindFirstFileW(path + @"\*", out WIN32_FIND_DATAW findData);
+                path = path.EndsWith(@"\") ? path : path + @"\";
+                findHandle = FindFirstFileA(path + @"*", out WIN32_FIND_DATAA findData);
 
                 if (findHandle == INVALID_HANDLE_VALUE)
                     return;
 
-                string fullPath = path + @"\" + findData.cFileName;
-                do
+                GetFolderEntries(findHandle, findData, path, rootEntry);
+
+                rootEntry.Subfolders.AsParallel().ForAll((folder) =>
                 {
-                    if (TraversalHelper.ShouldSkip(findData))
-                        continue;
-
-
-                    if (TraversalHelper.IsWindowsDirectory(findData))
+                    object lockObject = new(); // Lock object for synchronization
+                    PInvokeRecursive(folder.FullPath, out Entry subfolder);
+                    lock (lockObject)
                     {
-                        folder.Subfolders.Add(new Folder { Name = findData.cFileName, Files = [], Subfolders = [] });
+                        folder.Subfolders.AddRange(subfolder.Subfolders);
+                        folder.Files.AddRange(subfolder.Files);
                     }
-                    else
-                    {
-                        TraversalHelper.AddFile(fullPath, folder);
-                    }
-                }
-                while (FindNextFile(findHandle, out findData));
+                });
             }
             catch (Exception exception)
             {
@@ -162,18 +104,61 @@ namespace TestDirTraversal.Traversals.Specifications
                 if (findHandle != INVALID_HANDLE_VALUE)
                     FindClose(findHandle);
             }
+            return;
         }
-        #endregion Dfs
 
-        public Folder GetFolderStructure(string rootPath)
+
+        protected Entry GetFolderStructure(string rootPath)
         {
-            PInvokeRecursive(rootPath, out Folder rootFolder);
-
-            // Folder rootFolder = new() { Files = [], Subfolders = [], Name = Path.GetFileName(rootPath) };
-            // HashSet<string> traversedPaths = [];
-            // PInvokeDfsRecursiveAsync(rootPath, rootFolder, traversedPaths);
+            // PInvokeRecursiveParalleled(rootPath, out Entry rootFolder);
             
+            PInvokeRecursive(rootPath, out Entry rootFolder);
             return rootFolder;
         }
+
+        #region Recursive
+        protected void ProcessFoundFilesAndFolders(IntPtr findHandle, WIN32_FIND_DATAA findData, string path, Entry folder)
+        {
+            do
+            {
+                if (TraversalHelper.ShouldSkip(findData))
+                    continue;
+
+                string fullPath = path + findData.cFileName;
+
+                if (TraversalHelper.IsWindowsDirectory(findData))
+                {
+                    TraversalHelper.AddSubfolder(fullPath, folder, PInvokeRecursive);
+                }
+                else
+                {
+                    TraversalHelper.AddFile(fullPath, folder);
+                }
+            }
+            while (FindNextFileA(findHandle, out findData));
+        }
+
+        protected void GetFolderEntries(IntPtr findHandle, WIN32_FIND_DATAA findData, string path, Entry folder)
+        {
+            do
+            {
+                if (TraversalHelper.ShouldSkip(findData))
+                    continue;
+
+                string fullPath = path + findData.cFileName;
+
+                if (TraversalHelper.IsWindowsDirectory(findData))
+                {
+                    folder.Subfolders.Add(new Entry { Name = Path.GetFileName(fullPath), FullPath = fullPath });
+                }
+                else
+                {
+                    TraversalHelper.AddFile(fullPath, folder);
+                }
+            }
+            while (FindNextFileA(findHandle, out findData));
+        }
+        #endregion Recursive
+
     }
 }

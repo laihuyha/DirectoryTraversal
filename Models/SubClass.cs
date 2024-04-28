@@ -3,12 +3,12 @@ using System.Collections.Generic;
 
 namespace TestDirTraversal
 {
-    public class Folder
+    public class Entry
     {
+        public string FullPath { get; set; }
         public string Name { get; set; }
-        public DateTime LastWriteTime { get; set; }
-        public List<Folder> Subfolders { get; set; }
-        public List<string> Files { get; set; }
+        public List<Entry> Subfolders { get; set; } = [];
+        public List<string> Files { get; set; } = [];
     }
 
     public class FileInformation
