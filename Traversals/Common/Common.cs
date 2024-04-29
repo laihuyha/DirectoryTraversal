@@ -1,10 +1,9 @@
 using System;
-using System.Diagnostics;
 using TestDirTraversal.Traversals.Specifications;
 
 namespace TestDirTraversal.Traversals.Common
 {
-    public class Common : Windows
+    public class Common
     {
         public Common()
         {
@@ -14,13 +13,25 @@ namespace TestDirTraversal.Traversals.Common
         {
             try
             {
-                var watch = new Stopwatch();
-                watch.Start();
-                var folder = GetFolderStructure(rootPath);
-                watch.Stop();
-                Console.BackgroundColor = ConsoleColor.DarkGreen;
-                Console.WriteLine($"===> Common.GetDirectoryTreeStructure taken: {watch.ElapsedMilliseconds} ms");
-                return folder;
+                Entry folderTree;
+                if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+                {
+                    Console.WriteLine("====> Windows Base System");
+                    var winBaseHelper = new Windows();
+                    winBaseHelper.PInvokeRecursive(rootPath, out folderTree);
+                    return folderTree;
+                }
+                else if (Environment.OSVersion.Platform == PlatformID.Unix)
+                {
+                    Console.WriteLine("====> Unix Base System");
+                    var unixBaseHelper = new Unix();
+                    unixBaseHelper.PInvokeRecursive(rootPath, out folderTree);
+                    return folderTree;
+                }
+                else
+                {
+                    return null;
+                }
             }
             catch (Exception e)
             {
