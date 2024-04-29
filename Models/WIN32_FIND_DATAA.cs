@@ -3,6 +3,11 @@ using System.Runtime.InteropServices;
 
 namespace TestDirTraversal.Models
 {
+    /// <summary>
+    /// This struct using for Windows base system
+    /// <br/>
+    /// <see cref="WIN32_FIND_DATAA">https://learn.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-win32_find_dataa</see>
+    /// </summary>
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     public struct WIN32_FIND_DATAA
     {

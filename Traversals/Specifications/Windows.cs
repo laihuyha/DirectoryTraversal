@@ -38,8 +38,7 @@ namespace TestDirTraversal.Traversals.Specifications
                 path = path.EndsWith(@"\") ? path : path + @"\";
                 findHandle = FindFirstFileA(path + @"*", out WIN32_FIND_DATAA findData);
 
-                if (findHandle == INVALID_HANDLE_VALUE)
-                    return;
+                if (findHandle == INVALID_HANDLE_VALUE) return;
 
                 ProcessFoundFilesAndFolders(findHandle, findData, path, folder);
             }
@@ -61,6 +60,7 @@ namespace TestDirTraversal.Traversals.Specifications
 
         public void PInvokeRecursiveParalleled(string path, out Entry rootEntry)
         {
+            object lockObject = new(); // Lock object for synchronization
             rootEntry = new Entry
             {
                 Name = Path.GetFileName(path),
@@ -83,7 +83,6 @@ namespace TestDirTraversal.Traversals.Specifications
 
                 rootEntry.Subfolders.AsParallel().ForAll((folder) =>
                 {
-                    object lockObject = new(); // Lock object for synchronization
                     PInvokeRecursive(folder.FullPath, out Entry subfolder);
                     lock (lockObject)
                     {
@@ -107,16 +106,7 @@ namespace TestDirTraversal.Traversals.Specifications
             return;
         }
 
-
-        protected Entry GetFolderStructure(string rootPath)
-        {
-            // PInvokeRecursiveParalleled(rootPath, out Entry rootFolder);
-            
-            PInvokeRecursive(rootPath, out Entry rootFolder);
-            return rootFolder;
-        }
-
-        #region Recursive
+        #region Recursive sub method
         protected void ProcessFoundFilesAndFolders(IntPtr findHandle, WIN32_FIND_DATAA findData, string path, Entry folder)
         {
             do
@@ -126,7 +116,7 @@ namespace TestDirTraversal.Traversals.Specifications
 
                 string fullPath = path + findData.cFileName;
 
-                if (TraversalHelper.IsWindowsDirectory(findData))
+                if (TraversalHelper.IsDirectory(findData))
                 {
                     TraversalHelper.AddSubfolder(fullPath, folder, PInvokeRecursive);
                 }
@@ -147,7 +137,7 @@ namespace TestDirTraversal.Traversals.Specifications
 
                 string fullPath = path + findData.cFileName;
 
-                if (TraversalHelper.IsWindowsDirectory(findData))
+                if (TraversalHelper.IsDirectory(findData))
                 {
                     folder.Subfolders.Add(new Entry { Name = Path.GetFileName(fullPath), FullPath = fullPath });
                 }
@@ -158,7 +148,7 @@ namespace TestDirTraversal.Traversals.Specifications
             }
             while (FindNextFileA(findHandle, out findData));
         }
-        #endregion Recursive
+        #endregion Recursive sub method
 
     }
 }
